@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 ROS_DISTRO=${1:-"none"}
 BASE_IMAGE=$2
 NEMO_VERSION="1.0.0rc1"
