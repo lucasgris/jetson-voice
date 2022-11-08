@@ -4,25 +4,16 @@ set -e
 
 ROS_DISTRO=${1:-"none"}
 BASE_IMAGE=$2
-NEMO_VERSION="1.0.0rc1"
+# NEMO_VERSION="1.0.0rc1"
+NEMO_VERSION="1.12.0"
 
 # find container tag from os version
 source docker/tag.sh
 
 if [ $ARCH = "aarch64" ]; then
 	if [ -z $BASE_IMAGE ]; then
-		if [ $L4T_VERSION = "32.6.1" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.6.1-py3"
-		elif [ $L4T_VERSION = "32.5.1" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.5.0-py3"
-		elif [ $L4T_VERSION = "32.5.0" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.5.0-py3"
-		elif [ $L4T_VERSION = "32.4.4" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.4.4-py3"
-		elif [ $L4T_VERSION = "32.4.3" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.4.3-py3"
-		elif [ $L4T_VERSION = "32.4.2" ]; then
-			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r32.4.2-py3"
+		if [ $L4T_VERSION = "35.1.0" ]; then
+			BASE_IMAGE="nvcr.io/nvidia/l4t-ml:r35.1.0-py3"
 		else
 			echo "cannot build jetson-voice docker container for L4T R$L4T_VERSION"
 			echo "please upgrade to the latest JetPack, or build jetson-voice natively"
@@ -39,7 +30,7 @@ echo "CONTAINER=$VOICE_CONTAINER"
 echo "BASE_IMAGE=$BASE_IMAGE"
 
 # build the container
-sudo docker build -t $VOICE_CONTAINER -f Dockerfile.$ARCH \
+sudo nvidia-docker build -t $VOICE_CONTAINER -f Dockerfile.$ARCH \
           --build-arg BASE_IMAGE=$BASE_IMAGE \
 		--build-arg NEMO_VERSION=$NEMO_VERSION \
 		.
@@ -65,7 +56,7 @@ if [[ "$ROS_DISTRO" != "none" ]] ; then
 	echo "CONTAINER=$ROS_CONTAINER_BASE"
 	echo "BASE_IMAGE=$VOICE_CONTAINER"
 
-	sudo docker build -t $ROS_CONTAINER_BASE -f docker/containers/Dockerfile.ros.$ROS_DISTRO \
+	sudo nvidia-docker build -t $ROS_CONTAINER_BASE -f docker/containers/Dockerfile.ros.$ROS_DISTRO \
           --build-arg BASE_IMAGE=$VOICE_CONTAINER \
 		.
 	
