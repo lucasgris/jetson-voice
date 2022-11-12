@@ -38,22 +38,21 @@ class WhisperROS(ASR):
         self.sample_rate = sample_rate
 
         # create topics
-        self.get_logger().info(f"creating topics")
-        self.audio_subscriber = self.create_subscription(Audio, 'audio_in', self.audio_listener, 10)
-        self.transcript_publisher = self.create_publisher(String, 'transcripts', 10)
+        print(f"creating topics")
+        self.audio_subscriber = rospy.Subscriber('audio_in', Audio, self.audio_listener, 10)
+        self.transcript_publisher = rospy.Publisher('transcripts', String, 10)
 
         # load the ASR model
-        self.get_logger().info(f"model '{self.model_name}' ready")
-        
+        print(f"loading model")        
         self.asr = whisper.load_model(model_name)
         self.decoding_options = whisper.DecodingOptions(
             language="en", without_timestamps=True, beam_size=1)
         # warmup
-        self.get_logger().info(f"running warmup")
+        print(f"running warmup")
         mel = whisper.log_mel_spectrogram(torch.empty(torch.Size([480000])).to("cuda"))
         self.asr.decode(mel, self.decoding_options)
         
-        self.get_logger().info(f"model '{self.model_name}' ready") 
+        print(f"model '{self.model_name}' ready") 
 
     def transcribe(audio, decoding_options=None):
         if not decoding_options:
@@ -67,9 +66,9 @@ class WhisperROS(ASR):
         result = self.stt.decode(mel, decoding_options)
         with open(f'{audio_path}.txt', 'a') as txt:
             txt.write(f'{self.__class__.__name__}: {result.text}')
-        self.get_logger().debug(f"{result}")
+        print(f"{result}")
         end = time.time()
-        self.get_logger().debug(f"\ttook {end-st} seconds")
+        print(f"\ttook {end-st} seconds")
         
         msg = String()
         msg.data = result.text
@@ -79,11 +78,11 @@ class WhisperROS(ASR):
         
     def audio_listener(self, msg):
         if msg.info.sample_rate != self.sample_rate:
-            self.get_logger().warning(f"audio has sample_rate {msg.info.sample_rate}, "
+            print(f"audio has sample_rate {msg.info.sample_rate}, "
                                       f"but ASR expects sample_rate {self.asr.sample_rate}")
             
         samples = np.frombuffer(msg.data, dtype=msg.info.sample_format)
-        self.get_logger().debug(f'received audio samples {samples.shape} dtype={samples.dtype}') # rms={np.sqrt(np.mean(samples**2))}')
+        print(f'received audio samples {samples.shape} dtype={samples.dtype}') # rms={np.sqrt(np.mean(samples**2))}')
         
         self.transcribe(samples)
 

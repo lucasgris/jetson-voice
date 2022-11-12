@@ -1,41 +1,34 @@
 #!/usr/bin/env python3
 import os
-import rclpy
 import numpy as np
 
-from rclpy.node import Node
-
 from jetson_voice.utils import AudioInput, audio_to_int16
-from jetson_voice_ros.msg import Audio
+from src.msg import Audio
 
 
-class AudioInputNode(Node):
-    def __init__(self):
-        super().__init__('audio_input', namespace='voice')
+class AudioInput:
+    def __init__(self, 
+                 device_name, 
+                 sample_rate, 
+                 chunk_size, 
+                 resets):
+        self.device_name = device_name
+        self.sample_rate = sample_rate
+        self.chunk_size = chunk_size
+        self.resets = resets
         
         # create topics
-        self.audio_publisher = self.create_publisher(Audio, 'audio_in', 10)
-        
-        # get node parameters
-        self.declare_parameter('device', '')          # input audio device ID or name
-        self.declare_parameter('sample_rate', 16000)  # sample rate (in Hz)
-        self.declare_parameter('chunk_size', 16000)   # number of samples per buffer
-        self.declare_parameter('resets', -1)          # number of times to reset the device (-1 is infinite)
-        
-        self.device_name = str(self.get_parameter('device').value)
-        self.sample_rate = self.get_parameter('sample_rate').value
-        self.chunk_size = self.get_parameter('chunk_size').value
-        self.resets = self.get_parameter('resets').value
+        self.audio_publisher = rospy.Publisher('audio_in', Audio, 10)
         
         self.reset_count = 0
         
         if self.device_name == '':
             raise ValueError("must set the 'device' parameter to either an input audio device ID/name or the path to a .wav file")
         
-        self.get_logger().info(f'device={self.device_name}')
-        self.get_logger().info(f'sample_rate={self.sample_rate}')
-        self.get_logger().info(f'chunk_size={self.chunk_size}')
-        self.get_logger().info(f'resets={self.resets}')
+        print(f'device={self.device_name}')
+        print(f'sample_rate={self.sample_rate}')
+        print(f'chunk_size={self.chunk_size}')
+        print(f'resets={self.resets}')
         
         # check if this is an audio device or a wav file
         file_ext = os.path.splitext(self.device_name)[1].lower()
@@ -54,7 +47,6 @@ class AudioInputNode(Node):
         # create a timer to check for audio samples
         self.timer = self.create_timer(self.chunk_size / self.sample_rate * 0.75, self.publish_audio)
         
-        
     def publish_audio(self):
     
         while True:
@@ -63,14 +55,14 @@ class AudioInputNode(Node):
             if samples is not None:
                 break
                 
-            self.get_logger().warning('no audio samples were returned from the audio device')
+            print('no audio samples were returned from the audio device')
             
             if self.resets < 0 or self.reset_count < self.resets:
                 self.reset_count += 1
-                self.get_logger().warning(f'resetting audio device {self.device_name} (attempt {self.reset_count} of {self.resets})')
+                print(f'resetting audio device {self.device_name} (attempt {self.reset_count} of {self.resets})')
                 self.device.reset()
             else:
-                self.get_logger().error(f'maximum audio device resets has been reached ({self.resets})')
+                print(f'maximum audio device resets has been reached ({self.resets})')
                 return
                 
         if samples.dtype == np.float32:  # convert to int16 to make the message smaller
@@ -79,7 +71,7 @@ class AudioInputNode(Node):
         if samples.dtype != np.int16:  # the other voice nodes expect int16/float32
             raise ValueError(f'audio samples are expected to have datatype int16, but they were {samples.dtype}')
         
-        self.get_logger().debug(f'publishing audio samples {samples.shape} dtype={samples.dtype}') # rms={np.sqrt(np.mean(samples**2))}')
+        print(f'publishing audio samples {samples.shape} dtype={samples.dtype}') # rms={np.sqrt(np.mean(samples**2))}')
         
         # publish message
         msg = Audio()
@@ -95,14 +87,6 @@ class AudioInputNode(Node):
         
         self.audio_publisher.publish(msg)
         
-        
-def main(args=None):
-    rclpy.init(args=args)
-    node = AudioInputNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
-
 if __name__ == "__main__":
-    main()
+   pass
+   # TODO

@@ -4,21 +4,19 @@ import numpy as np
 from abs import abstractclass
 from multiprocessing import Process
 
-import rospy
-import pyloudnorm as pyln
 import numpy as np
+import pyloudnorm as pyln
+import rospy
 import soundfile as sf
 import torch
 import torchaudio
 import whisper
-from jetson_voice import AudioInput, AudioWavStream
-from jetson_voice.utils import audio_to_float
 from soundfile import SoundFile
-import soundfile as sf
 
-from src.msg import Audio
+from jetson_voice import AudioInput
+from jetson_voice.utils import audio_to_float, audio_to_int16
+from src.msg import Audio, Empty
 from src.srv import Vad, VadResponse
-from std_msgs.msg import String
 
 
 class VADRecorder:
@@ -46,10 +44,10 @@ class VADRecorder:
 
         # create model
         print(f"Creating VAD model")
-        self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
-                              model='silero_vad',
-                              force_reload=True,
-                              onnx=False)
+        self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',  # TODO: load from local directory
+                                                model='silero_vad',
+                                                force_reload=True,
+                                                onnx=False)
         self.model.to("cuda")
         get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks = self.utils
         self.vad_iterator = VADIterator(self.model)
@@ -68,7 +66,8 @@ class VADRecorder:
 
         # create topics
         print(f"creating topics")
-        self.audio_publisher = self.create_publisher(Audio, 'audio', 10)
+        self.audio_publisher = rospy.Publisher('audio_in', Audio, 10)
+        self.record_subscriber = rospy.Subscriber('vad_start', Empty, 10)
 
     def int2float(sound):
         abs_max = np.abs(sound).max()
@@ -78,16 +77,31 @@ class VADRecorder:
         sound = sound.squeeze()  # depends on the use case
         return sound
 
-class VADRecorderService(VADRecorder):
+    def publish_audio(self, samples):
+        if samples.dtype == np.float32:  # convert to int16 to make the message smaller
+            samples = audio_to_int16(samples)
 
-    def __init__(self, name='voice/vad', **kwargs):
-        super().__init__(**kwargs)
-        # create topics
-        print(f"creating service {name}")
-        self.service = rospy.Service(name, Vad, self) 
+        if samples.dtype != np.int16:  # the other voice nodes expect int16/float32
+            raise ValueError(f'audio samples are expected to have datatype int16, but they were {samples.dtype}')
+        
+        print(f'publishing audio samples {samples.shape} dtype={samples.dtype}') # rms={np.sqrt(np.mean(samples**2))}')
+        
+        # publish message
+        msg = Audio()
+        
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.device_name
 
-    def __call__(self, req):
-        print(req)
+        msg.info.channels = 1  # AudioInput is set to mono
+        msg.info.sample_rate = self.sample_rate
+        msg.info.sample_format = str(samples.dtype)
+        
+        msg.data = samples.tobytes()
+        
+        self.audio_publisher.publish(msg)
+
+    def __call__(self, save_audio=True):
+        
         prob = self.model(torch.rand((1,16_000), dtype=torch.float32).to("cuda"), 16_000).item()
         os.system(f'aplay resources/okay2.wav -D hw:2,0')  # TODO: refactor path or use sound_play
         
@@ -169,11 +183,26 @@ class VADRecorderService(VADRecorder):
         os.system(f'aplay resources/activate.wav -D hw:2,0')
                     
         print(f"Saving audio {os.path.abspath(audio_name)}")
+        
+        self.publish_audio(audio)
+        
+        return audio_name
+
+class VADRecorderService(VADRecorder):
+
+    def __init__(self, name='voice/vad', **kwargs):
+        super().__init__(**kwargs)
+        # create service
+        print(f"creating service {name}")
+        self.service = rospy.Service(name, Vad, self)
+
+    def __call__(self, req=None):
+        audio_name = super(save_audio=True)
         return VadResponse(
             audio_path=os.path.abspath(audio_name)
         )
 
 if __name__ == "__main__":
     rospy.init_node('vad')
-    vad_recorder = VADRecorder()
+    vad_recorder_service = VADRecorderService()
     rospy.spin()
