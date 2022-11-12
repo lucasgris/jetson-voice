@@ -13,8 +13,8 @@ import torchaudio
 import whisper
 from soundfile import SoundFile
 
-from jetson_voice_ros.msg import Audio
-from jetson_voice_ros.srv import Asr
+from src.msg import Audio
+from src.srv import Asr, AsrResponse
 from std_msgs.msg import String
 
 
@@ -33,7 +33,7 @@ class ASR:
 class WhisperROS(ASR):
 
     def __init__(self, model_name="base", sample_rate=16000):
-        super().__init__(self, ASRNode)    
+        super().__init__(self, ASR)    
         
         self.sample_rate = sample_rate
 
@@ -108,10 +108,10 @@ if __name__ == "__main__":
         print(req)
         transcription = asr.transcribe_audio_path(req.audio_path)  # TODO: refactor to use audio instead of audio path
         print(transcription)
-        return sttResponse(
+        return AsrResponse(
             transcription=transcription
         )
     rospy.init_node('whisper_asr')
-    service = rospy.Service('voice/stt/whisper', stt_srv, handler)   
+    service = rospy.Service('voice/stt/whisper', Asr, handler)   
     
     rospy.spin()
