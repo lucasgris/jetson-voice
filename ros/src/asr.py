@@ -41,11 +41,6 @@ class WhisperROS(ASR):
         self.get_logger().info(f"creating topics")
         self.audio_subscriber = self.create_subscription(Audio, 'audio_in', self.audio_listener, 10)
         self.transcript_publisher = self.create_publisher(String, 'transcripts', 10)
-        
-        # get node parameters
-        self.declare_parameter('model', 'model_name')
-        self.model_name = str(self.get_parameter('model').value)
-        self.get_logger().info(f'model = {self.model_name}')
 
         # load the ASR model
         self.get_logger().info(f"model '{self.model_name}' ready")
