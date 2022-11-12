@@ -1,32 +1,25 @@
 #!/usr/bin/env python3
 import os
-import rclpy
+import rospy
 import numpy as np
 
-from rclpy.node import Node
 from std_msgs.msg import String
 
-from jetson_voice import TTS
 from jetson_voice.utils import audio_to_int16
 from jetson_voice_ros.msg import Audio
+from src.srv import Tts, TtsResponse
 
 
-class TTSNode(Node):
-    def __init__(self):
-        super().__init__('tts', namespace='voice')
-        
+@abstractclass
+class TTS:
+    pass
+
+class TTSROS:
+    def __init__(self):        
         # create topics
-        self.text_subscriber = self.create_subscription(String, 'tts_text', self.text_listener, 10)
-        self.audio_publisher = self.create_publisher(Audio, 'tts_audio', 10)
-
-        # get node parameters
-        self.declare_parameter('model', 'fastpitch_hifigan')
-        self.model_name = str(self.get_parameter('model').value)
-        self.get_logger().info(f'model = {self.model_name}')
-
-        # load the TTS model
-        self.tts = TTS(self.model_name)
-        self.get_logger().info(f"model '{self.model_name}' ready")
+        self.text_subscriber = rospy.Subscriber(String, 'tts_text', self.text_listener, 10)
+        self.audio_publisher = rospy.Publisher(Audio, 'tts_audio', 10)
+        # TODO
         
     def text_listener(self, msg):
         text = msg.data.strip()
@@ -34,9 +27,9 @@ class TTSNode(Node):
         if len(text) == 0:
             return
             
-        self.get_logger().info(f"running TTS on '{text}'")
+        print(f"running TTS on '{text}'")
         
-        samples = self.tts(text)
+        samples = self.tts(text) # TODO
         samples = audio_to_int16(samples)
         
         # publish message
@@ -52,15 +45,19 @@ class TTSNode(Node):
         msg.data = samples.tobytes()
         
         self.audio_publisher.publish(msg)
+
+    def __call__(self, req):
+        return self.text_listener(req)
         
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = TTSNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()
+    tts = TTSROS()
+    
+    def handler(req):
+        print(req)
+        tts(req)  # TODO: refactor to use audio instead of audio path
+        return TtsResponse()
+    rospy.init_node('tts')
+    service = rospy.Service('voice/tts', Tts, handler)   
+    
+    rospy.spin()
