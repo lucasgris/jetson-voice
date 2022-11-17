@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-import numpy as np
+import datetime
 from abs import abstractclass
 from multiprocessing import Process
 
@@ -64,8 +64,8 @@ class WhisperROS(ASR):
         st = time.time()
         mel = whisper.log_mel_spectrogram(audio)
         result = self.stt.decode(mel, decoding_options)
-        with open(f'{audio_path}.txt', 'a') as txt:
-            txt.write(f'{self.__class__.__name__}: {result.text}')
+        with open(f'asr.log', 'a') as txt:
+            txt.write(f'{datetime.datetime.now()}:{self.__class__.__name__}: {result.text}')
         print(f"{result}")
         end = time.time()
         print(f"\ttook {end-st} seconds")
@@ -90,10 +90,14 @@ class WhisperROS(ASR):
         print(f"Starting transcribing audio {audio_path}")
         try:
             audio = whisper.load_audio(file=audio_path, sr=self.sample_rate)
+            transcription = self.transcribe(samples)
+            with open(f'{audio_path}.txt', 'a') as txt:
+                txt.write(f'{datetime.datetime.now()}:{self.__class__.__name__}: {transcription}')
         except Exception as e:
             print(f"Trascribing {audio_path}: {str(e)}")
             raise e
             return None
+        return transcription
 
 if __name__ == "__main__":
     asr = WhisperROS()

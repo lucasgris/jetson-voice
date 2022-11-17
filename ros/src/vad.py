@@ -44,6 +44,7 @@ class VADRecorder:
 
         # create model
         print(f"Creating VAD model")
+        torch.__version__ = torch.__version__.split('a')[0]  # Workaround to avoid errors during silero load
         self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',  # TODO: load from local directory
                                                 model='silero_vad',
                                                 force_reload=True,
@@ -61,7 +62,7 @@ class VADRecorder:
         except Exception as e:
             print(f"ERROR creating streaming on device {self.mic}")
         for i in range(5):
-            prob = self.model(torch.rand((1,16_000), dtype=torch.float32).to("cuda"), 16_000).item()
+            prob = self.model(torch.rand((1, 16_000), dtype=torch.float32).to("cuda"), 16_000).item()
             print(prob)
 
         # create topics
@@ -162,8 +163,7 @@ class VADRecorder:
         
         print('Audio shape:', final_samples.shape)
 
-        if self.normalize:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-
+        if self.normalize:
             audio_name = self.prefix+current_time+".norm.wav"
 
             data, rate = sf.read(current_time+".wav") # load audio
@@ -180,7 +180,7 @@ class VADRecorder:
             output_wav_norm = SoundFile(audio_name, mode='w', samplerate=16_000, channels=1)
             output_wav_norm.write(loudness_normalized_audio)
 
-        os.system(f'aplay resources/activate.wav -D hw:2,0')
+        os.system(f'aplay resources/activate.wav -D hw:2,0')  #TODO: use ros library
                     
         print(f"Saving audio {os.path.abspath(audio_name)}")
         
