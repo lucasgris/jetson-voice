@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import datetime
 import rospy
 import numpy as np
 
@@ -19,7 +20,31 @@ class TTSROS:
         # create topics
         self.text_subscriber = rospy.Subscriber(String, 'tts_text', self.text_listener, 10)
         self.audio_publisher = rospy.Publisher(Audio, 'tts_audio', 10)
-        # TODO
+        
+        self.tacotron2 = torch.load("../data/nvidia_tacotron2pyt_fp16.pt")
+        self.tacotron2 = self.tacotron2.to('cuda')
+        self.tacotron2.eval()
+
+        self.waveglow = torch.load("../data/nvidia_waveglowpyt_fp16_20210323.pt')
+        self.waveglow = self.waveglow.to('cuda')
+        self.waveglow.eval()
+
+        self.utils = torch.hub.load('NVIDIA/DeepLearningExamples:torchhub', 'nvidia_tts_utils')
+        sequences, lengths = utils.prepare_input_sequence(["warmup" for _ in range(5)])
+
+        start_time = time.time() 
+
+        with torch.no_grad():
+            mel, _, _ = tacotron2.infer(sequences, lengths)
+            audio = waveglow.infer(mel)
+        audio_numpy = audio[0].data.cuda().numpy()
+        self.rate = 22050
+
+        write(f"warmup.wav", self.rate, audio_numpy)
+
+        end_time = time.time()
+
+        print(f"Elapsed time: {end_time - start_time}")
         
     def text_listener(self, msg):
         text = msg.data.strip()
@@ -29,8 +54,24 @@ class TTSROS:
             
         print(f"running TTS on '{text}'")
         
-        samples = self.tts(text) # TODO
-        samples = audio_to_int16(samples)
+        sequences, lengths = utils.prepare_input_sequence([text])
+
+        start_time = time.time() 
+
+        with torch.no_grad():
+            mel, _, _ = tacotron2.infer(sequences, lengths)
+            audio = waveglow.infer(mel)
+        audio_numpy = audio[0].data.cuda().numpy()
+        self.rate = 22050
+
+        audio_path = f"{datetime.datetime.now()}.wav"
+        write(audio_path, self.rate, audio_numpy)
+
+        end_time = time.time()
+
+        print(f"Elapsed time: {end_time - start_time}")
+        
+        samples = audio_to_int16(audio_numpy)
         
         # publish message
         msg = Audio()
@@ -46,6 +87,8 @@ class TTSROS:
         
         self.audio_publisher.publish(msg)
 
+        return audio_path
+
     def __call__(self, req):
         return self.text_listener(req)
         
@@ -55,7 +98,7 @@ def main(args=None):
     
     def handler(req):
         print(req)
-        tts(req)  # TODO: refactor to use audio instead of audio path
+        tts(req) 
         return TtsResponse()
     rospy.init_node('tts')
     service = rospy.Service('voice/tts', Tts, handler)   
